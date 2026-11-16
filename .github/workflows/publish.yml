@@ -1,7 +1,8 @@
 name: publish
 
-# Publishes @practicalworks/rc-client to public npm, and the same version to
-# GitHub Packages, whenever main carries a version a registry does not have yet.
+# Publishes @practicalworks/rc-client and @practicalworks/rc-bridge to public npm,
+# and the same versions to GitHub Packages, whenever main carries a version a
+# registry does not have yet. The client goes first: the bridge depends on it.
 #
 # npm: NO credential here. npm trusted publishing checks this workflow's OIDC
 # token against the trusted publisher configured on the package and issues a
@@ -9,14 +10,18 @@ name: publish
 # is incomplete); no NODE_AUTH_TOKEN in that step's environment, even empty, or
 # npm uses it instead of falling back to OIDC.
 #
+# Each package is published from a `pnpm pack` tarball: packing rewrites the
+# bridge's `workspace:*` dependency to the client's version, where `npm publish`
+# of the directory would ship `workspace:*` verbatim and nobody could install it.
+#
 # GitHub Packages: a consumer whose .npmrc maps the whole @practicalworks scope
-# there resolves this package there too, and a bundler that reinstalls
+# there resolves these packages there too, and a bundler that reinstalls
 # dependencies by version cannot keep a tarball-URL pin to npm. Without this copy
 # such a consumer's install 404s.
 on:
   push:
     branches: [main]
-    paths: ["packages/client/**", ".github/workflows/publish.yml"]
+    paths: ["packages/client/**", "packages/bridge/**", ".github/workflows/publish.yml"]
   workflow_dispatch:
 
 permissions:
@@ -36,39 +41,47 @@ jobs:
       - run: npm install -g npm@latest && npm --version
       - run: pnpm guard
       - run: pnpm build && pnpm test
-      - name: Publish if this version is new
-        working-directory: packages/client
+      - name: Pack each package
         run: |
-          name=$(node -p 'require("./package.json").name')
-          version=$(node -p 'require("./package.json").version')
-          if npm view "$name@$version" version --registry https://registry.npmjs.org/ >/dev/null 2>&1; then
-            echo "SKIP: $name@$version is already on npm"
-            exit 0
-          fi
-          npm publish --access public --provenance --registry https://registry.npmjs.org/
+          for pkg in client bridge; do
+            (cd "packages/$pkg" && pnpm pack --pack-destination "$RUNNER_TEMP/packs/$pkg")
+          done
+      - name: Publish to npm if this version is new
+        run: |
+          for pkg in client bridge; do
+            name=$(node -p "require('./packages/$pkg/package.json').name")
+            version=$(node -p "require('./packages/$pkg/package.json').version")
+            if npm view "$name@$version" version --registry https://registry.npmjs.org/ >/dev/null 2>&1; then
+              echo "SKIP: $name@$version is already on npm"
+              continue
+            fi
+            npm publish "$RUNNER_TEMP"/packs/$pkg/*.tgz --access public --provenance --registry https://registry.npmjs.org/
+          done
       # GitHub Packages, with this job's own GITHUB_TOKEN, set on THIS step only
-      # (see the npm note above). The package inherits this public repo's
+      # (see the npm note above). The packages inherit this public repo's
       # visibility. The userconfig names the variable, never its value.
       - name: Publish to GitHub Packages if this version is new there
-        working-directory: packages/client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          name=$(node -p 'require("./package.json").name')
-          version=$(node -p 'require("./package.json").version')
           cfg="$RUNNER_TEMP/github-packages.npmrc"
           echo '@practicalworks:registry=https://npm.pkg.github.com' > "$cfg"
           echo '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' >> "$cfg"
-          if npm view "$name@$version" version --userconfig "$cfg" >/dev/null 2>&1; then
-            echo "SKIP: $name@$version is already on GitHub Packages"
-            exit 0
-          fi
-          npm publish --userconfig "$cfg" --registry https://npm.pkg.github.com
+          for pkg in client bridge; do
+            name=$(node -p "require('./packages/$pkg/package.json').name")
+            version=$(node -p "require('./packages/$pkg/package.json').version")
+            if npm view "$name@$version" version --userconfig "$cfg" >/dev/null 2>&1; then
+              echo "SKIP: $name@$version is already on GitHub Packages"
+              continue
+            fi
+            npm publish "$RUNNER_TEMP"/packs/$pkg/*.tgz --userconfig "$cfg" --registry https://npm.pkg.github.com
+          done
       # Last, so a slow or failed check never skips the GitHub Packages copy above.
       # It waits through the minute or so npm takes to serve a fresh version.
       - name: Verify npm provenance
-        working-directory: packages/client
         run: |
-          name=$(node -p 'require("./package.json").name')
-          version=$(node -p 'require("./package.json").version')
-          node ../../scripts/verify-npm-provenance.mjs "$name" "$version"
+          for pkg in client bridge; do
+            name=$(node -p "require('./packages/$pkg/package.json').name")
+            version=$(node -p "require('./packages/$pkg/package.json').version")
+            node scripts/verify-npm-provenance.mjs "$name" "$version"
+          done

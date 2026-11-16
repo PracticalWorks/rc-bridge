@@ -1,0 +1,56 @@
+{
+  "name": "@practicalworks/rc-bridge",
+  "version": "0.1.0",
+  "description": "Puts Rocket.Chat in front of an OpenAI-compatible agent: an outgoing-webhook relay with one conversation per thread, reactions as receipts, attachments, streaming, and a plugin seam.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "rc-bridge": "dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "rocket.chat",
+    "rocketchat",
+    "bridge",
+    "agent",
+    "openai"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@practicalworks/rc-client": "workspace:*",
+    "unpdf": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PracticalWorks/rc-bridge.git",
+    "directory": "packages/bridge"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "provenance": true
+  }
+}
