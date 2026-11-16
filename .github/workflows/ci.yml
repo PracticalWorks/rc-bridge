@@ -1,0 +1,19 @@
+name: ci
+
+# Public repo: hosted runners are free here. The job is the shared test workflow.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    uses: PracticalWorks/.github/.github/workflows/test.yml@v1
+    with:
+      lint: ""
+      test: ""
+      run: |
+        pnpm guard
+        pnpm build
+        pnpm typecheck
+        pnpm test

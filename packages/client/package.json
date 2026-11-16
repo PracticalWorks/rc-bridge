@@ -1,0 +1,47 @@
+{
+  "name": "@practicalworks/rc-client",
+  "version": "0.1.0",
+  "description": "A typed Rocket.Chat REST client: posts by name, room or thread, replies with a fallback, reactions, room type, uploads, auth status, and splitting a message Rocket.Chat would refuse.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "rocket.chat",
+    "rocketchat",
+    "chat",
+    "client"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PracticalWorks/rc-bridge.git",
+    "directory": "packages/client"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "provenance": true
+  }
+}

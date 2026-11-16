@@ -1,0 +1,14 @@
+{
+  "name": "rc-bridge-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "guard": "node --test scripts/guard.test.mjs scripts/verify-npm-provenance.test.mjs && node scripts/guard.mjs",
+    "guard:history": "node scripts/guard.mjs --history",
+    "verify:npm-provenance": "node scripts/verify-npm-provenance.mjs @practicalworks/rc-client 0.1.0"
+  }
+}
