@@ -1,6 +1,6 @@
 {
   "name": "@practicalworks/rc-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Puts Rocket.Chat in front of an OpenAI-compatible agent: an outgoing-webhook relay with one conversation per thread, reactions as receipts, attachments, streaming, and a plugin seam.",
   "license": "MIT",
   "type": "module",
