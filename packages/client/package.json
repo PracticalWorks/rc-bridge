@@ -1,6 +1,6 @@
 {
   "name": "@practicalworks/rc-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A typed Rocket.Chat REST client: posts by name, room or thread, replies with a fallback, reactions, room type, uploads, auth status, and splitting a message Rocket.Chat would refuse.",
   "license": "MIT",
   "type": "module",
