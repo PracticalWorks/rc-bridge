@@ -76,6 +76,8 @@ Issues and pull requests are welcome. Please open an issue before a large change
 
 ## Who makes this
 
-Built by [Practical Works](https://practical.works), a Tampa Bay software shop. We take apps to production, run self-hosted business systems and put AI agents to work. Our own team works in Rocket.Chat with agents in the room every day, and this is the part of that setup we could share. If you'd like that for your business, [get in touch](https://practical.works).
+[Practical Works](https://practical.works), a small software shop in Tampa Bay. Our team works in Rocket.Chat with agents in the room every day; this is the part of that setup we could pull out and share, and we maintain it because we depend on it.
+
+Questions, bug reports and ideas are welcome in [issues](https://github.com/PracticalWorks/rc-bridge/issues). And if you need a hand shipping an app or putting an agent to work, we [take on projects](https://practical.works).
 
 MIT licensed.
