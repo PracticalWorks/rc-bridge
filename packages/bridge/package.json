@@ -1,8 +1,31 @@
 {
   "name": "@practicalworks/rc-bridge",
-  "version": "0.1.1",
-  "description": "Puts Rocket.Chat in front of an OpenAI-compatible agent: an outgoing-webhook relay with one conversation per thread, reactions as receipts, attachments, streaming, and a plugin seam.",
+  "version": "0.1.2",
+  "description": "Put your AI agent in Rocket.Chat: a relay to an OpenAI-style Responses API with one conversation per thread, reactions as receipts, images and files, streaming, and a plugin API.",
+  "keywords": [
+    "rocket.chat",
+    "rocketchat",
+    "bridge",
+    "agent",
+    "openai",
+    "rocket-chat",
+    "ai-agent",
+    "llm",
+    "chatbot",
+    "responses-api",
+    "webhook"
+  ],
+  "homepage": "https://github.com/PracticalWorks/rc-bridge/tree/main/packages/bridge#readme",
+  "bugs": {
+    "url": "https://github.com/PracticalWorks/rc-bridge/issues"
+  },
   "license": "MIT",
+  "author": "Practical Works <hello@practical.works> (https://practical.works)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PracticalWorks/rc-bridge.git",
+    "directory": "packages/bridge"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,13 +40,6 @@
   },
   "files": [
     "dist"
-  ],
-  "keywords": [
-    "rocket.chat",
-    "rocketchat",
-    "bridge",
-    "agent",
-    "openai"
   ],
   "engines": {
     "node": ">=20"
@@ -42,11 +58,6 @@
     "tsx": "^4.23.0",
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/PracticalWorks/rc-bridge.git",
-    "directory": "packages/bridge"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",

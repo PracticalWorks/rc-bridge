@@ -1,9 +1,13 @@
 # @practicalworks/rc-bridge
 
-Puts Rocket.Chat in front of an OpenAI-compatible agent. A Rocket.Chat **Outgoing
-Webhook** POSTs each message to the bridge; the bridge sends the turn to the agent's
-`/v1/responses` endpoint and posts the answer back through Rocket.Chat's REST API as the
-bot user, via [`@practicalworks/rc-client`](../client).
+**Put your AI agent in Rocket.Chat.** A small Node service that relays Rocket.Chat messages
+to an agent and posts the answers back, with one conversation per thread, reactions as
+receipts, images and files, and streaming. It runs from env with no code, and has a plugin API
+for when you want more.
+
+[![npm](https://img.shields.io/npm/v/@practicalworks/rc-bridge)](https://www.npmjs.com/package/@practicalworks/rc-bridge)
+[![ci](https://github.com/PracticalWorks/rc-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/PracticalWorks/rc-bridge/actions/workflows/ci.yml)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-blue)](https://github.com/PracticalWorks/rc-bridge/blob/main/LICENSE)
 
 ```
 Rocket.Chat ──(Outgoing Webhook)──▶ rc-bridge ──▶ agent  POST /v1/responses
@@ -11,7 +15,72 @@ Rocket.Chat ──(Outgoing Webhook)──▶ rc-bridge ──▶ agent  POST /v
      └──────(REST, bot credentials)─────┴──────── answer ◀───────┘
 ```
 
-What the relay does on its own, with no plugins:
+**Contents:** [Quick start](#quick-start) · [What it does](#what-it-does) ·
+[Troubleshooting](#troubleshooting) · [Configuration reference](#configuration-reference) ·
+[Plugins](#plugins) · [Develop](#develop)
+
+## Quick start
+
+About five minutes if you administer a Rocket.Chat.
+
+**You need:**
+
+- Node 20 or later.
+- A Rocket.Chat where you can create users and integrations.
+- An agent server with an OpenAI-style **Responses API** (`POST /v1/responses`) that accepts a
+  *named* conversation: the bridge sends `conversation: "rc:<room>:<thread>"` and expects the
+  server to create or continue it. Agent gateways built for chat apps do this. OpenAI's own
+  hosted API does not, because it only accepts the `conv_…` ids it issued.
+- An HTTPS address Rocket.Chat can reach the bridge on: a reverse proxy, or a tunnel while you
+  try it.
+
+**1. Create the bot.** In Rocket.Chat, add a user for the bot (role `bot`), log in as it, and
+create a personal access token under *My Account → Personal Access Tokens*. Note its user id,
+its token and its username.
+
+**2. Point a webhook at the bridge.** *Administration → Integrations → New → Outgoing*:
+
+- Event trigger: `Message Sent`.
+- Channel: the channels it should hear (for example `#ask-agent`), or `all_direct_messages`.
+- URLs: `https://<your bridge address>/rocketchat/webhook`.
+- Token: invent a long random string. The bridge checks it on every call.
+
+**3. Configure.** Put this in a `.env` file, or in your process manager's env:
+
+```sh
+# Your agent server
+AGENT_API_URL=https://agent.example.com    # without /v1
+AGENT_API_KEY=                             # its bearer token
+AGENT_MODEL=agent                          # the `model` sent with each turn
+
+# Rocket.Chat
+ROCKETCHAT_URL=https://chat.example.com
+ROCKETCHAT_USER_ID=                        # the bot's user id (step 1)
+ROCKETCHAT_AUTH_TOKEN=                     # the bot's personal access token (step 1)
+ROCKETCHAT_BOT_USERNAME=agent              # the bot's username (step 1)
+ROCKETCHAT_WEBHOOK_TOKEN=                  # the token you invented (step 2)
+ROCKETCHAT_ALLOWED_ROOM_IDS=               # optional: comma-separated room ids; unset = any room the webhook fires from
+
+PORT=8081
+```
+
+**4. Run it.**
+
+```sh
+npx @practicalworks/rc-bridge
+# or install it: npm install -g @practicalworks/rc-bridge && rc-bridge
+```
+
+The bridge does not read `.env` files itself; load the file with your process manager, or with
+`node --env-file=.env $(which rc-bridge)` on a global install. It logs what it is listening on, and
+`curl http://localhost:8081/health` answers `200`.
+
+**5. Say hello.** In a channel the webhook hears, write `@agent hello`. You should see 👀 on your
+message, then the answer in a thread. In a DM with the bot you don't need the @mention.
+
+## What it does
+
+With no plugins:
 
 - **One conversation per thread.** Each turn names a `conversation` (`rc:<roomId>:<thread>`),
   which the agent's Responses API chains server-side. A DM's top-level messages share one
@@ -34,28 +103,36 @@ What the relay does on its own, with no plugins:
 - **Two HTTP routes.** `POST /rocketchat/webhook` (token-checked, acked fast, the turn runs
   detached) and `GET /health` (503 while draining, with recent turn timings).
 
-## Run it
+The bridge has two HTTP routes: `POST /rocketchat/webhook` and `GET /health`. It serves plain HTTP
+on `PORT`, so put TLS in front of it.
 
-Node 20 or later.
+## Troubleshooting
 
-```sh
-npx @practicalworks/rc-bridge        # or: rc-bridge, once installed
-```
+**No 👀, no answer.** Rocket.Chat never reached the bridge, or the bridge dropped the message.
+- *Administration → Integrations → your webhook → History* shows each call and the bridge's
+  response. No entry means the trigger did not match: check the event, the channel and that the
+  integration is enabled.
+- A `401` (`bad token`) in that history means `ROCKETCHAT_WEBHOOK_TOKEN` does not match the integration's token.
+- A call that never connected means Rocket.Chat cannot reach your URL: it has to be HTTPS and reachable
+  from the Rocket.Chat server, not just from your laptop.
+- The message was not addressed to the bot. In a channel, @mention it (or reply in a thread it is
+  already in). `RESPOND_TO_ALL=1` answers everything, which is rarely what you want in a busy room.
+- The room is not in `ROCKETCHAT_ALLOWED_ROOM_IDS`.
 
-It listens on `PORT` over plain HTTP; put TLS in front of it (a reverse proxy or a tunnel),
-since Rocket.Chat needs an HTTPS URL to reach it.
+**👀, then ⚠️.** The agent call failed, and the bridge's log has the status and the first 500
+characters of the server's reply. A `400` that mentions `conversation` means your server does not
+accept named conversations (see *You need* above). A `401` means `AGENT_API_KEY` is wrong.
 
-### Rocket.Chat setup
+**👀, then ⏳.** The turn ran past `AGENT_TIMEOUT_MS` (6 minutes by default). The bridge stops
+waiting but the agent keeps working in the same conversation, so ask for the result in the thread.
 
-1. A bot user for the bridge, and a personal access token for it. Its user id and token are
-   `ROCKETCHAT_USER_ID` and `ROCKETCHAT_AUTH_TOKEN`; its username is `ROCKETCHAT_BOT_USERNAME`.
-2. **Administration → Integrations → New → Outgoing**: event `Message Sent`, the channels it
-   should hear, URL `https://<where the bridge is reachable>/rocketchat/webhook`, and a token
-   you invent, which is also `ROCKETCHAT_WEBHOOK_TOKEN`.
-3. Set `ROCKETCHAT_ALLOWED_ROOM_IDS` to the rooms allowed to drive the agent. Unset, any room the
-   webhook fires from can.
+**The bot answers its own messages, or another bot's.** Set `ROCKETCHAT_BOT_USERNAME` to the bot's
+real username, and list other bots in `ROCKETCHAT_IGNORE_USERNAMES`.
 
-### Environment
+**Check it's alive:** `GET /health` returns recent turn timings. It returns `503` while the bridge
+is shutting down.
+
+## Configuration reference
 
 Names only; set the values in your own environment.
 
