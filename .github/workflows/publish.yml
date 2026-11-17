@@ -83,5 +83,5 @@ jobs:
           for pkg in client bridge; do
             name=$(node -p "require('./packages/$pkg/package.json').name")
             version=$(node -p "require('./packages/$pkg/package.json').version")
-            node scripts/verify-npm-provenance.mjs "$name" "$version"
+            node scripts/verify-npm-provenance.mjs "$name" "$version" PracticalWorks/rc-bridge
           done
