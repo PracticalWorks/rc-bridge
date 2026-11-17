@@ -9,6 +9,6 @@
     "test": "pnpm -r test",
     "guard": "node --test scripts/guard.test.mjs scripts/verify-npm-provenance.test.mjs && node scripts/guard.mjs",
     "guard:history": "node scripts/guard.mjs --history",
-    "verify:npm-provenance": "node scripts/verify-npm-provenance.mjs @practicalworks/rc-client 0.1.0"
+    "verify:npm-provenance": "node scripts/verify-npm-provenance.mjs @practicalworks/rc-client 0.1.2 PracticalWorks/rc-bridge"
   }
 }
