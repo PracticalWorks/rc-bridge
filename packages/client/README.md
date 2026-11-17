@@ -1,6 +1,29 @@
 # @practicalworks/rc-client
 
-A typed client for [Rocket.Chat](https://www.rocket.chat)'s REST API, with no runtime dependencies. One `RocketChatClient` covers posting by name, by room and into a thread, replies that degrade instead of failing, reactions, room type, file uploads and an auth probe. Every post is split to fit Rocket.Chat's message size limit.
+**A typed [Rocket.Chat](https://www.rocket.chat) REST client for Node, with no runtime dependencies.**
+Post to a channel, a DM, a room or a thread; react; upload files; check auth. Every message is
+split to fit Rocket.Chat's size limit, so long output never gets refused.
+
+[![npm](https://img.shields.io/npm/v/@practicalworks/rc-client)](https://www.npmjs.com/package/@practicalworks/rc-client)
+[![ci](https://github.com/PracticalWorks/rc-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/PracticalWorks/rc-bridge/actions/workflows/ci.yml)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-blue)](https://github.com/PracticalWorks/rc-bridge/blob/main/LICENSE)
+
+Use it for the jobs that tell people things: a deploy notice, a nightly report, an alert, a tool
+your AI agent calls to message the team. It is the client inside
+[`@practicalworks/rc-bridge`](https://www.npmjs.com/package/@practicalworks/rc-bridge).
+
+## Install
+
+```sh
+npm install @practicalworks/rc-client
+```
+
+Node 20 or later (it uses the global `fetch`, `FormData` and `Blob`).
+
+## Quick start
+
+Create a bot user in Rocket.Chat and a personal access token for it (*My Account → Personal
+Access Tokens*); the token page shows the user id too.
 
 ```ts
 import { RocketChatClient } from "@practicalworks/rc-client";
@@ -11,11 +34,14 @@ const rc = new RocketChatClient({
   authToken: process.env.RC_AUTH_TOKEN!,
 });
 
-await rc.postToChannel("#general", "Deploy finished.");
-await rc.postToChannel("@sam", "Your report is ready.");
+await rc.postToChannel("#deploys", "v2.3.0 is live.");   // a channel
+await rc.postToChannel("@sam", "Your report is ready.");  // a DM, opened if needed
+
+const status = await rc.authStatus();                     // { ok, status, error? }, never throws
 ```
 
-The base URL and the bot's credentials are injected by the caller, never stored or logged here. Node 20 or later (global `fetch`, `FormData`, `Blob`); pass your own `fetch` as the second constructor argument to test or proxy.
+The base URL and credentials come from the caller and are never stored or logged. Pass your
+own `fetch` as the second constructor argument to test or proxy.
 
 ## Two registers
 
