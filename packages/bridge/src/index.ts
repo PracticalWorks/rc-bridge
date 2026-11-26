@@ -15,6 +15,8 @@ export { composeHooks, type Hooks } from "./hooks.js";
 
 export { createLog, envList, loadCoreConfig, type CoreConfig, type Log } from "./config.js";
 export {
+  AgentHttpError,
+  AgentRunFailedError,
   createAgentClient,
   isTurnTimeout,
   type AgentClientOptions,
@@ -24,6 +26,7 @@ export {
   type ParkVerdict,
   type RunRead,
 } from "./agent.js";
+export { createAgentOutages, describeAgentFailure, outageReply, DEFAULT_PROFILE } from "./outage.js";
 export { createAttachmentDeps, type AttachmentDepsOptions } from "./attachment-deps.js";
 export {
   MAX_RESIZE_INPUT_BYTES,

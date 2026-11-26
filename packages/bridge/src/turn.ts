@@ -46,6 +46,7 @@ import type { CoreConfig, Log } from "./config.js";
 import { isResetCommand, RESET_ACK } from "./conversation-epochs.js";
 import { FOLLOWUP_TTL_MS, holdFollowUp, takeFollowUp } from "./followups.js";
 import { isTurnTimeout, type createAgentClient, type AgentTarget, type ParkVerdict } from "./agent.js";
+import { createAgentOutages, DEFAULT_PROFILE, outageReply } from "./outage.js";
 import type { Hooks } from "./hooks.js";
 import type { Turn, WebhookPayload } from "./plugin.js";
 import type { RocketChatClient } from "@practicalworks/rc-client";
@@ -88,9 +89,9 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   // Nudge and busy-reply throttles: once per thread, not once per message.
   const lastNudges = new Map<string, number>();
   const lastBusyReplies = new Map<string, number>();
-  // Consecutive failures reaching the agent; reset on the first success, so the
-  // room hears "it broke" once per outage rather than once per message.
-  let consecutiveAgentFailures = 0;
+  // Who has heard "it broke": once per room per outage, kept per profile, so one
+  // profile recovering never re-arms another's warning (see outage.ts).
+  const outages = createAgentOutages();
 
   /** The root of `tmid`, read at most once per thread. Never throws: an
    * unreadable root is cached as `null` and answers every question with "no". */
@@ -416,7 +417,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       const framed = [contextHeader(payload, isDM, thread), ...(await hooks.framing(turn)), REACTION_HINT, prompt]
         .filter(Boolean)
         .join("\n");
-      const routed = (await hooks.targetForRoom(roomId)) ?? { target: deps.defaultTarget, profile: "default" };
+      const routed = (await hooks.targetForRoom(roomId)) ?? { target: deps.defaultTarget, profile: DEFAULT_PROFILE };
       const { target } = routed;
       profile = routed.profile;
       // The stream went quiet: is the run parked on a human? A plain GET, never a
@@ -458,7 +459,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       turnTimings.record({ at: new Date().toISOString(), room: roomId, profile, status: "ok", ...timings, tools: tools.length });
       runEvents?.close();
       runEvents = undefined;
-      consecutiveAgentFailures = 0; // reachable again
+      outages.recovered(profile); // this profile is reachable again
       // The gateway now chains this conversation: no further root hydration.
       markConversationStarted(conversation);
       log(`turn done in ${Date.now() - startedAt}ms · ${describeTools(tools)}`);
@@ -512,12 +513,13 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       // On the message itself, even when the breaker keeps the room quiet.
       setReceipt(agentTimedOut ? "waiting" : "failed");
 
-      // CIRCUIT BREAKER: the agent being down is ONE fact. Say it once,
-      // then stay quiet until a turn succeeds; the log still gets every failure.
+      // CIRCUIT BREAKER: a profile being down is ONE fact per room. Each room
+      // hears it once, naming the kind of failure, then stays quiet until a turn
+      // on that profile succeeds; the log still gets every failure.
       if (!agentTimedOut) {
-        consecutiveAgentFailures++;
-        if (consecutiveAgentFailures > 1) {
-          log(`Agent unreachable (${consecutiveAgentFailures} in a row) — staying quiet in ${roomId}: ${message}`);
+        const outageProfile = profile ?? DEFAULT_PROFILE;
+        if (!outages.failed(outageProfile, roomId)) {
+          log(`Agent failing on profile ${outageProfile} — already said so, staying quiet in ${roomId}: ${message}`);
           return;
         }
       }
@@ -525,7 +527,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         roomId,
         agentTimedOut
           ? `This one ran past my ${Math.round(config.agent.timeoutMs / 60_000)}-minute wait, but the agent is still working server-side — anything it announces will land here, and a follow-up in this thread picks the conversation right back up.`
-          : `⚠️ Can't reach the agent right now. I'll stay quiet until it's back.`,
+          : outageReply(err),
         thread,
       );
     } finally {

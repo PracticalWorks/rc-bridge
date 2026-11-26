@@ -99,7 +99,8 @@ With no plugins:
 - **Streaming.** When the endpoint streams, the bridge reads the run live, never aborts it, and,
   if the endpoint also serves `GET /v1/runs/{id}`, notices a run parked on an approval.
 - **Loop and flood bounds.** A per-thread post cap, a busy guard that holds the next message
-  instead of dropping it, and a once-per-outage error reply.
+  instead of dropping it, and an outage reply said once per room, kept per agent profile, so one
+  profile's success never re-arms another profile's warning.
 - **Two HTTP routes.** `POST /rocketchat/webhook` (token-checked, acked fast, the turn runs
   detached) and `GET /health` (503 while draining, with recent turn timings).
 
@@ -121,7 +122,9 @@ on `PORT`, so put TLS in front of it.
 
 **👀, then ⚠️.** The agent call failed, and the bridge's log has the status and the first 500
 characters of the server's reply. A `400` that mentions `conversation` means your server does not
-accept named conversations (see *You need* above). A `401` means `AGENT_API_KEY` is wrong.
+accept named conversations (see *You need* above). A `401` means `AGENT_API_KEY` is wrong. The
+reply names the kind (rate limited, refused key, other HTTP error, failed run, unreachable), never
+the server's text, and each room hears it once until that profile answers again.
 
 **👀, then ⏳.** The turn ran past `AGENT_TIMEOUT_MS` (6 minutes by default). The bridge stops
 waiting but the agent keeps working in the same conversation, so ask for the result in the thread.
