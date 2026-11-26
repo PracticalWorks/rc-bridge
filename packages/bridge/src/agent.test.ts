@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DeadlineError, fetchWithTimeout } from "@practicalworks/rc-client";
-import { createAgentClient, isTurnTimeout, type AgentTarget } from "./agent.js";
+import { AgentHttpError, AgentRunFailedError, createAgentClient, isTurnTimeout, type AgentTarget } from "./agent.js";
 
 const target: AgentTarget = { url: "http://agent.test/", apiKey: "k", model: "test-model" };
 
@@ -113,6 +113,41 @@ describe("one request builder for both turns", () => {
     expect(turn.timings.firstEventMs).toEqual(expect.any(Number));
     expect(turn.timings.firstTextMs).toEqual(expect.any(Number));
     expect(turn.timings.totalMs).toBeGreaterThanOrEqual(turn.timings.firstTextMs!);
+  });
+});
+
+describe("a failed turn is typed by what failed", () => {
+  it("a non-2xx answer carries its status, plain or streamed", async () => {
+    const f = fakeFetch([() => new Response("usage limit reached", { status: 429 })]);
+    const plain = await client(f.impl).ask(target, "c", "p").catch((e: unknown) => e);
+    const streamed = await client(f.impl).askStreaming(target, "c", "p", []).catch((e: unknown) => e);
+    for (const err of [plain, streamed]) {
+      expect(err).toBeInstanceOf(AgentHttpError);
+      expect((err as AgentHttpError).status).toBe(429);
+      expect((err as Error).message).toMatch(/returned 429: usage limit reached/);
+    }
+  });
+
+  it("a rejected image is an HTTP 400 too", async () => {
+    const f = fakeFetch([() => new Response("no images", { status: 400 })]);
+    const img = [{ name: "a.png", dataUrl: "data:image/png;base64,AA==" }];
+    const err = await client(f.impl).ask(target, "c", "p", img).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AgentHttpError);
+    expect((err as AgentHttpError).status).toBe(400);
+  });
+
+  it("a run the stream reports failed is a run failure, not an HTTP error", async () => {
+    const sse = [
+      { type: "response.created", response: { id: "resp_1" } },
+      { type: "response.failed", error: { message: "provider exhausted" } },
+    ]
+      .map((e) => `data: ${JSON.stringify(e)}\n\n`)
+      .join("");
+    const f = fakeFetch([() => new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } })]);
+    const err = await client(f.impl).askStreaming(target, "c", "p", []).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AgentRunFailedError);
+    expect(err).not.toBeInstanceOf(AgentHttpError);
+    expect((err as Error).message).toBe("Agent stream failed: provider exhausted");
   });
 });
 

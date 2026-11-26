@@ -50,6 +50,27 @@ export function isTurnTimeout(err: unknown): boolean {
   return err instanceof DeadlineError && (err.label === TURN_LABEL || err.label === STREAM_TURN_LABEL);
 }
 
+/** The agent answered the turn with a non-2xx status. `status` is the fact a
+ * caller branches on; the message keeps the first 500 characters of the body for
+ * the log, and is never posted to a room as-is. */
+export class AgentHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AgentHttpError";
+  }
+}
+
+/** The agent accepted the turn and then reported the run failed on the stream. */
+export class AgentRunFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AgentRunFailedError";
+  }
+}
+
 /** Run states the gateway will not move off. */
 const TERMINAL_RUN_STATES = new Set(["completed", "failed", "cancelled", "canceled"]);
 /** Not terminal, but will never advance: a person must act. Only the
@@ -115,11 +136,12 @@ export function createAgentClient(opts: AgentClientOptions) {
       // A 400 on an image turn means this gateway no longer takes inline images.
       // Fail loudly: retrying as text would read as if the agent saw the screenshot.
       if (images.length && res.status === 400) {
-        throw new Error(
+        throw new AgentHttpError(
+          400,
           `The agent rejected the image (400) — this gateway build may not support inline image input on /v1/responses. Detail: ${detail}`,
         );
       }
-      throw new Error(`Agent /v1/responses returned ${res.status}: ${detail}`);
+      throw new AgentHttpError(res.status, `Agent /v1/responses returned ${res.status}: ${detail}`);
     }
     return res;
   }
@@ -257,7 +279,7 @@ export function createAgentClient(opts: AgentClientOptions) {
       firstTextMs: sinceRequest(firstDeltaAt),
       totalMs: Date.now() - requestStartedAt,
     };
-    if (streamError) throw new Error(`Agent stream failed: ${streamError}`);
+    if (streamError) throw new AgentRunFailedError(`Agent stream failed: ${streamError}`);
     if (completed) {
       const summary = summarizeResponse(completed);
       // Prefer the completion's own text; fall back to the accumulated deltas.
